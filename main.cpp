@@ -11,13 +11,11 @@ int main(int argc, char *argv[])
 
     Editor editor;
 
-    editor.show();
-
-
-    QImage img(":images/earth.png");
+    QImage img(":/images/earth.png");
 
     editor.setImage(img);
 
+    editor.show();
 
     return app.exec();
 }

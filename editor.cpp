@@ -14,15 +14,29 @@ Editor::Editor(QWidget *parent) : QWidget(parent)
     backgroundColor = QWidget::palette().color(QWidget::backgroundRole());
     foregroundColor = QWidget::palette().color(QWidget::foregroundRole());
 
+    zoomLevel = 1.0f;
     //data = QImage(size(), QImage::Format_ARGB32);
     //data.fill(backgroundColor);
 
 }
 
+void Editor::setOptimalView()
+{
+    // attempt to show the whole image and center it
+    displayPos = QPoint(data.size().width() * 0.5f,
+                        data.size().height() * 0.5f);
+}
 
 void Editor::setImage(const QImage &image)
 {
+    if (image.size().width() < 1 || image.size().height() < 1) {
+        return;
+    }
+    defined = true;
     data = image;
+
+    setOptimalView();
+
     refreshPixmap();
 }
 
@@ -33,8 +47,7 @@ QSize Editor::sizeHint() const
     {
         return QSize(32, 32);
     }
-    return QSize(frameSize.width() * fmin(thumbnails.size(), 8),
-                 frameSize.height());
+    return QSize(data.width(),  data.height());
 }
 
 
@@ -44,13 +57,13 @@ QSize Editor::minimumSizeHint() const
     {
         return QSize(32,32);
     }
-    return frameSize;
+    return data.size();
 }
 
 
 void Editor::resizeEvent(QResizeEvent * /* event */)
 {
-    refreshPixmap();
+    update();
 }
 
 
@@ -62,25 +75,32 @@ void Editor::keyPressEvent(QKeyEvent *event)
 
 void Editor::wheelEvent(QWheelEvent *event)
 {
-    int dY = event->pixelDelta().y();   // Scrolling up and down zooms
-    int dX = event->pixelDelta().x();   // Scrolling left and right scrolls
+    int dY = event->pixelDelta().y();
+    int dX = event->pixelDelta().x();
+
+    displayPos += QPointF(dX / zoomLevel, dY / zoomLevel);
+    update();
 
 
     event->ignore();
 }
 
 
-void Editor::setPos(const float &pos)
+void Editor::setPos(float pos)
 {
     refreshPixmap();
     update();
 }
 
 
-void Editor::setZoom(const float &zoom)
+void Editor::setZoom(float zoom)
 {
-    refreshPixmap();
-    update();
+    zoom = fmaxf(fminf(zoom, 8.0f), 0.25f);
+    if (zoomLevel != zoom) {
+
+        refreshPixmap();
+        update();
+    }
 }
 
 
@@ -95,7 +115,6 @@ void Editor::mousePressEvent(QMouseEvent *event)
 
     } else if (event->button() == Qt::RightButton) {
         mouseRightPressed = true;
-        rubberBandShown = true;
         mouseRightDownPos = event->pos();
     }
     mouseLastPosition = event->pos();
@@ -111,7 +130,6 @@ void Editor::mouseReleaseEvent(QMouseEvent *event)
 
     } else if (event->button() == Qt::RightButton) {
         mouseRightPressed = false;
-        rubberBandShown = false;
         //updateRubberBandRegion();
     }
     mouseLastPosition = event->pos();
@@ -122,16 +140,16 @@ void Editor::mouseMoveEvent(QMouseEvent *event)
 {
 
     if (mouseLeftPressed) {
-        // Perform scrolling/scrubbing
+        // Perform scrolling
         int dX = event->pos().x() - mouseLastPosition.x();
-        //adjustPos(dX);
+        int dY = event->pos().y() - mouseLastPosition.y();
+        displayPos += QPointF(dX / zoomLevel, dY / zoomLevel);
+
+        update();
     }
 
     if (mouseRightPressed) {
         // Perform rubberband operations
-        rubberBandRect = QRect(QPoint(mouseRightDownPos.x(), 0),
-                               QPoint(event->pos().x(), frameSize.height()));
-        //updateRubberBandRegion();
     }
 
     mouseLastPosition = event->pos();
@@ -140,8 +158,14 @@ void Editor::mouseMoveEvent(QMouseEvent *event)
 
 void Editor::refreshPixmap()
 {
-    pixmap = QPixmap(size());
-    pixmap.fill(backgroundColor);
+    if (!defined) {
+        pixmap = QPixmap(QSize(32,32));
+        pixmap.fill(backgroundColor);
+        return;
+    }
+
+    pixmap = QPixmap(data.size() * zoomLevel);
+    pixmap.fill(Qt::black);
 
     QPainter painter(&pixmap);
 
@@ -154,19 +178,43 @@ void Editor::refreshPixmap()
 // Conversion from widget space to frame space
 QPoint Editor::toImageSpace(const int &x_w, const int &y_w)
 {
-
+    return QPoint((x_w - width() / 2) * zoomLevel + displayPos.x(),
+                  (y_w - height() / 2) * zoomLevel + displayPos.y());
 }
 
 
 QPoint Editor::toWidgetSpace(const int &x_i, const int &y_i)
 {
-
+    return QPoint((x_i - displayPos.x()) * zoomLevel + width() / 2,
+                  (y_i - displayPos.y()) * zoomLevel + height() / 2);
 }
 
 
 void Editor::drawImage(QPainter *painter)
 {
+    int srcIncrement = 1;
+    int dstPixelSize = fmax(zoomLevel, 1);
+    if (zoomLevel <= 0) {
+        qDebug() << "Rendering error: Zoom level = " << zoomLevel;
+        return;
+        srcIncrement = 1 / zoomLevel;
+    }
 
+    int x_p = 0;
+    int y_p = 0;
+
+    for (int y_src = 0; y_src < data.height(); y_src+=srcIncrement) {
+        x_p = 0;
+        for (int x_src = 0; x_src < data.width(); x_src+=srcIncrement) {
+
+            painter->setPen(data.pixelColor(x_src, y_src));
+
+            painter->drawRect(x_p, y_p, dstPixelSize, dstPixelSize);
+
+            x_p += dstPixelSize;
+        }
+        y_p += dstPixelSize;
+    }
 }
 
 
@@ -180,5 +228,8 @@ void Editor::paintEvent(QPaintEvent * /* event */)
 {
     QPainter painter(this);
 
-    painter.drawPixmap(0, 0, pixmap);
+    displayPos;
+
+
+    painter.drawPixmap(displayPos.x(), displayPos.y(), pixmap);
 }

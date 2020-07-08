@@ -23,8 +23,11 @@ public:
 
     void setImage(const QImage &image);
 
-    void setZoom(const float &z);
-    void setPos(const float &z);
+    void setZoom(float z);
+    void setPos(float p);
+    void setOptimalView();
+
+    bool isDefined() { return defined; };
 
     QSize sizeHint() const;
     QSize minimumSizeHint() const;
@@ -46,32 +49,18 @@ private:
 
     QColor backgroundColor;
     QColor foregroundColor;
-    QImage data;    // The image we are working on
-    //QImage image;   // The image we are drawing on
-    QSize frameSize;    // size of each thumbnail must stay the same across gif
-
-    int selectIndex, hoverIndex;
-    QRect selectRect, hoverRect;
-    bool hoverChanged, selectChanged;  // Must update() if either is true
+    QImage data;
 
     bool mouseLeftPressed, mouseRightPressed;
     QPoint mouseLeftDownPos, mouseRightDownPos;
     QPoint mouseLastPosition;
 
-    bool rubberBandShown;
-    QRect rubberBandRect;
     QPixmap pixmap;
 
-    // TODO: encapsulate zoom/scroll settings in struct
-    float scrollPos, sp_f;
-    float zoomFactor, zf_f, zf_i;
-    bool halfFrames;
+    QPointF displayPos;  // The pixel on which we are centered
+    float zoomLevel;
 
-    // TODO: store delays
-    std::vector<QImage> thumbnails; // Store thumbnails in the timeline struct
-
-    bool checkSize(const QImage &image);
-
+    bool defined = false;
 
     QPoint toImageSpace(const int &x_w, const int &y_w);
     QPoint toWidgetSpace(const int &x_i, const int &y_i);
