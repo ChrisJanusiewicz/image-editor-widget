@@ -23,8 +23,11 @@ public:
 
     void setImage(const QImage &image);
 
+    void zoomIn();
+    void zoomOut();
     void setZoom(float z);
-    void setPos(float p);
+    void adjustPos(QPointF p);
+    void setPos(QPointF p);
     void setOptimalView();
 
     bool isDefined() { return defined; };
@@ -64,6 +67,8 @@ private:
 
     QPoint toImageSpace(const int &x_w, const int &y_w);
     QPoint toWidgetSpace(const int &x_i, const int &y_i);
+    QPoint toImageSpace(const QPoint &p);
+    QPoint toWidgetSpace(const QPoint &p);
 
     void refreshPixmap();
     void drawImage(QPainter *painter);
